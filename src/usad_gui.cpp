@@ -32,7 +32,7 @@ class UsadGUI : public rclcpp::Node {
         encoders_ticks_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr leane_abs_sub_;
 
-    bool show_encoders_window = true;
+    bool show_encoders_window_ = true;
 
     std::mutex encoders_ticks_mutex_;
     ira_interfaces::msg::EncodersTicks encoders_ticks_latest_;
@@ -96,10 +96,12 @@ class UsadGUI : public rclcpp::Node {
                          ImGuiWindowFlags_NoCollapse |
                              ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_AlwaysAutoResize);
-            ImGui::Checkbox("Encoders", &show_encoders_window);
+            ImGui::Checkbox("Encoders", &show_encoders_window_);
 
-            if (show_encoders_window) {
-                this->draw_encoders_window(&show_encoders_window);
+            if (this->show_encoders_window_) {
+                this->draw_encoders_window(&show_encoders_window_);
+            }
+
             }
 
             ImGui::Separator();
@@ -110,10 +112,16 @@ class UsadGUI : public rclcpp::Node {
                 ImGui::TextWrapped(
                     "USAD GUI\n"
                     "Copyright (C) 2022  Jacopo Maltagliati\n"
-                    "Released under the Apache v2 License.\n"
+                    "Released under the Apache v2 License.\n\n"
                     "Dear ImGui v1.90\n"
                     "Copyright (c) 2014-2023 Omar Cornut\n"
-                    "Released under the MIT license.\n");
+                    "Released under the MIT license.\n\n"
+                    "ImGui Knobs\n"
+                    "Copyright (c) 2022 Simon Altschuler\n"
+                    "Released under the MIT license.\n\n"
+                    "ImGui Knobs\n"
+                    "Copyright (c) 2022 Simon Altschuler\n"
+                    "Released under the MIT license.\n\n"
                 ImGui::Separator();
                 ImGui::Text("Built on ImGui v%s (%d)", IMGUI_VERSION,
                             IMGUI_VERSION_NUM);
@@ -134,8 +142,8 @@ class UsadGUI : public rclcpp::Node {
     }
 
     void draw_encoders_window(bool* visible) {
-        ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
-        ImGui::Begin("Encoders", visible);
+        // ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
+        ImGui::Begin("Encoders", visible, ImGuiWindowFlags_AlwaysAutoResize);
         // SKF
         this->encoders_ticks_mutex_.lock();
         ImGui::BeginGroup();
