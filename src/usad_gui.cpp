@@ -26,6 +26,10 @@ SDL_WindowFlags usad_window_flags_;
 constexpr unsigned int display_hist_size_ = 128;
 constexpr int leane_default_tdc_ = 2048;
 
+ImFont* font_default;
+ImFont* font_dseg_big;
+ImFont* font_dseg;
+
 class UsadGUI : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Subscription<ira_interfaces::msg::EncodersTicks>::SharedPtr
@@ -33,6 +37,9 @@ class UsadGUI : public rclcpp::Node {
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr leane_abs_sub_;
 
     bool show_encoders_window_ = true;
+    bool show_speedometer_window_ = true;
+
+    float skf_l_ratio_tpm_, skf_r_ratio_tpm_;
 
     std::mutex encoders_ticks_mutex_;
     ira_interfaces::msg::EncodersTicks encoders_ticks_latest_;
@@ -97,11 +104,14 @@ class UsadGUI : public rclcpp::Node {
                              ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_AlwaysAutoResize);
             ImGui::Checkbox("Encoders", &show_encoders_window_);
+            ImGui::Checkbox("Speedometer", &show_speedometer_window_);
 
             if (this->show_encoders_window_) {
                 this->draw_encoders_window(&show_encoders_window_);
             }
 
+            if (this->show_speedometer_window_) {
+                this->draw_speedometer_window(&show_speedometer_window_);
             }
 
             ImGui::Separator();
@@ -122,6 +132,12 @@ class UsadGUI : public rclcpp::Node {
                     "ImGui Knobs\n"
                     "Copyright (c) 2022 Simon Altschuler\n"
                     "Released under the MIT license.\n\n"
+                    "DSEG Fonts 0.46\n"
+                    "Copyright (c) 2020 Keshikan (www.keshikan.net)\n"
+                    "Licensed under SIL OPEN FONT LICENSE Version 1.1.\n\n"
+                    "Roboto Font\n"
+                    "Copyright (c) 2015 Google Inc.\n"
+                    "Released under the Apache v2 License.\n\n");
                 ImGui::Separator();
                 ImGui::Text("Built on ImGui v%s (%d)", IMGUI_VERSION,
                             IMGUI_VERSION_NUM);
@@ -200,8 +216,59 @@ class UsadGUI : public rclcpp::Node {
         ImGui::End();
     }
 
+    void draw_speedometer_window(bool* visible) {
+        float speed_kph;
+        // static float max_speed_kph = .0f;
+        ImGui::Begin("Speedometer", visible, ImGuiWindowFlags_AlwaysAutoResize);
+        {
+            int ticks_l, ticks_r;
+            this->encoders_ticks_mutex_.lock();
+            ticks_l = (int)this->encoders_ticks_latest_.left_wheel_ticks;
+            ticks_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
+            this->encoders_ticks_mutex_.unlock();
+            speed_kph = (ticks_l * this->skf_l_ratio_tpm_ +
+                         ticks_r * this->skf_r_ratio_tpm_) /
+                        2 / ImGui::GetIO().DeltaTime * 3.6f;
+        }
+        // if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
+        ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(15, 135, 250, 255));
+        ImGui::PushFont(font_dseg_big);
+        if (speed_kph < .0f) {
+            speed_kph = fabs(speed_kph);
+            if (speed_kph < 10.f) {
+                ImGui::Text("!%1.0f.", speed_kph);
+            } else {
+                ImGui::Text("%2.0f.", speed_kph);
+            }
+        } else {
+            if (speed_kph < 10.f) {
+                ImGui::Text("!%1.0f", speed_kph);
+            } else {
+                ImGui::Text("%2.0f", speed_kph);
+            }
+        }
+        ImGui::PopFont();
+        ImGui::PushFont(font_dseg);
+        ImGui::SameLine();
+        ImGui::BeginGroup();
+        ImGuiKnobs::Knob("##", &speed_kph, 0.f, 50.f, 0.1f, "",
+                         ImGuiKnobVariant_WiperOnly, 144.f,
+                         ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput);
+        ImGui::Text("KM/H");
+        ImGui::PopStyleColor();
+        ImGui::EndGroup();
+        ImGui::PopFont();
+        ImGui::End();
+    }
+
    public:
     UsadGUI() : Node("usad_gui") {
+        this->declare_parameter("skf_l_ratio_tpm", 0.007225956f);
+        this->declare_parameter("skf_r_ratio_tpm", 0.007178236f);
+        this->skf_l_ratio_tpm_ =
+            (float)this->get_parameter("skf_l_ratio_tpm").as_double();
+        this->skf_r_ratio_tpm_ =
+            (float)this->get_parameter("skf_r_ratio_tpm").as_double();
         this->encoders_ticks_sub_ =
             this->create_subscription<ira_interfaces::msg::EncodersTicks>(
                 "encoders_ticks", 10,
@@ -242,6 +309,8 @@ int main(int argc, char** argv) {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    // (void)io;
 #if 0
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         // Enable Keyboard Controls
@@ -255,6 +324,13 @@ int main(int argc, char** argv) {
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForOpenGL(usad_window_, usad_gl_context_);
     ImGui_ImplOpenGL3_Init();
+
+    font_default = io.Fonts->AddFontFromFileTTF(
+        "default.ttf", 16.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+    font_dseg_big = io.Fonts->AddFontFromFileTTF(
+        "dseg.ttf", 192.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+    font_dseg = io.Fonts->AddFontFromFileTTF("dseg.ttf", 48.0f, NULL,
+                                             io.Fonts->GetGlyphRangesDefault());
 
     // RCL
     rclcpp::init(argc, argv);
