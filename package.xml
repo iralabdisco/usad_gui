@@ -3,7 +3,7 @@
 <package format="3">
   <name>usad_gui</name>
   <version>0.0.1</version>
-  <description>SAMPLE TEXT YOLO</description>
+  <description>Graphical User Interface for the USAD Vehicle</description>
   <maintainer email="j.maltagliati@campus.unimib.it">Jacopo Maltagliati</maintainer>
   <license>Apache-2.0</license>
 
