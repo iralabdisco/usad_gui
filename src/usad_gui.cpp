@@ -61,30 +61,25 @@ class UsadGUI : public rclcpp::Node {
 
     float skf_l_ratio_mpt_, skf_r_ratio_mpt_;
 
-    std::mutex encoders_ticks_mutex_;
     ira_interfaces::msg::EncodersTicks encoders_ticks_latest_;
     float left_wheel_ticks_hist_[display_hist_size_] = {0};
     float right_wheel_ticks_hist_[display_hist_size_] = {0};
     rcl_time_point_value_t encoders_dt_ns_;
 
-    std::mutex leane_abs_mutex_;
     std_msgs::msg::Int32 leane_abs_latest_;
     float leane_abs_hist_[display_hist_size_] = {0};
     int leane_tdc_ = leane_default_tdc_;
 
     void leane_abs_callback(const std_msgs::msg::Int32 msg) {
         static uint offset = 0;
-        this->leane_abs_mutex_.lock();
         this->leane_abs_latest_ = msg;
         this->leane_abs_hist_[offset] = msg.data;
         offset++;
         if (offset >= display_hist_size_) offset = 0;
-        this->leane_abs_mutex_.unlock();
     }
 
     void encoders_ticks_callback(const ira_interfaces::msg::EncodersTicks msg) {
         static uint offset = 0;
-        this->encoders_ticks_mutex_.lock();
         {
             static rcl_time_point_value_t prev_ts_ns = 0;
             auto now_ns = this->now().nanoseconds();
@@ -96,7 +91,6 @@ class UsadGUI : public rclcpp::Node {
         this->right_wheel_ticks_hist_[offset] = msg.right_wheel_ticks;
         offset++;
         if (offset >= display_hist_size_) offset = 0;
-        this->encoders_ticks_mutex_.unlock();
     }
 
     void gui_callback() {
@@ -185,7 +179,6 @@ class UsadGUI : public rclcpp::Node {
         // ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
         ImGui::Begin("Encoders", visible, ImGuiWindowFlags_AlwaysAutoResize);
         // SKF
-        this->encoders_ticks_mutex_.lock();
         ImGui::BeginGroup();
         int latest_l = (int)this->encoders_ticks_latest_.left_wheel_ticks;
         int latest_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
@@ -206,9 +199,7 @@ class UsadGUI : public rclcpp::Node {
                          nullptr, -100.f, 100.f, ImVec2(0, 80.f));
         ImGui::PopItemWidth();
         ImGui::EndGroup();
-        this->encoders_ticks_mutex_.unlock();
         // Leane
-        this->leane_abs_mutex_.lock();
         int latest_lea = this->leane_abs_latest_.data;
         float latest_lea_percent =
             (this->leane_abs_latest_.data - this->leane_tdc_) / 40.96f;
@@ -236,7 +227,6 @@ class UsadGUI : public rclcpp::Node {
                          IM_ARRAYSIZE(this->leane_abs_hist_), 0, nullptr, 0.f,
                          4096.f, ImVec2(0, 100.f));
         ImGui::EndGroup();
-        this->leane_abs_mutex_.unlock();
         ImGui::End();
     }
 
@@ -249,11 +239,9 @@ class UsadGUI : public rclcpp::Node {
         {
             int ticks_l, ticks_r;
             rcl_time_point_value_t dt_ns;
-            this->encoders_ticks_mutex_.lock();
             ticks_l = (int)this->encoders_ticks_latest_.left_wheel_ticks;
             ticks_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
             dt_ns = this->encoders_dt_ns_;
-            this->encoders_ticks_mutex_.unlock();
             distance = (ticks_l * this->skf_l_ratio_mpt_ +
                         ticks_r * this->skf_r_ratio_mpt_) /
                        2;
