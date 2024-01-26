@@ -242,7 +242,9 @@ class UsadGUI : public rclcpp::Node {
 
     void draw_speedometer_window(bool* visible) {
         float speed_kph;
-        // static float max_speed_kph = .0f;
+        float distance;
+        static float max_speed_kph = .0f;
+        static float trip_odo = .0f;
         ImGui::Begin("Speedometer", visible, ImGuiWindowFlags_AlwaysAutoResize);
         {
             int ticks_l, ticks_r;
@@ -252,9 +254,12 @@ class UsadGUI : public rclcpp::Node {
             ticks_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
             dt_ns = this->encoders_dt_ns_;
             this->encoders_ticks_mutex_.unlock();
-            speed_kph = (ticks_l * this->skf_l_ratio_mpt_ +
-                         ticks_r * this->skf_r_ratio_mpt_) /
-                        2 / (dt_ns / 1000000000.f) * 3.6f;
+            distance = (ticks_l * this->skf_l_ratio_mpt_ +
+                        ticks_r * this->skf_r_ratio_mpt_) /
+                       2;
+            trip_odo += distance / 1000.f;
+            speed_kph = distance / (dt_ns / 1000000000.f) * 3.6f;
+            if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
         }
         // if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
         ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(15, 135, 250, 255));
@@ -284,6 +289,14 @@ class UsadGUI : public rclcpp::Node {
         ImGui::PopStyleColor();
         ImGui::EndGroup();
         ImGui::PopFont();
+        ImGui::Separator();
+        if (ImGui::Button("Reset")) {
+            max_speed_kph = .0f;
+            trip_odo = .0f;
+        }
+        ImGui::SameLine();
+        ImGui::Text("Top Speed: %2.0fkm/h - Trip: %3.2fkm", max_speed_kph,
+                    trip_odo);
         ImGui::End();
     }
 
