@@ -32,6 +32,7 @@
 #include "../imgui-knobs-main/imgui-knobs.h"
 #include "ira_interfaces/msg/encoders_ticks.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/time.hpp"
 #include "std_msgs/msg/int32.hpp"
 
 using namespace std::chrono_literals;
@@ -58,12 +59,13 @@ class UsadGUI : public rclcpp::Node {
     bool show_encoders_window_ = true;
     bool show_speedometer_window_ = true;
 
-    float skf_l_ratio_tpm_, skf_r_ratio_tpm_;
+    float skf_l_ratio_mpt_, skf_r_ratio_mpt_;
 
     std::mutex encoders_ticks_mutex_;
     ira_interfaces::msg::EncodersTicks encoders_ticks_latest_;
     float left_wheel_ticks_hist_[display_hist_size_] = {0};
     float right_wheel_ticks_hist_[display_hist_size_] = {0};
+    rcl_time_point_value_t encoders_dt_ns_;
 
     std::mutex leane_abs_mutex_;
     std_msgs::msg::Int32 leane_abs_latest_;
@@ -83,6 +85,12 @@ class UsadGUI : public rclcpp::Node {
     void encoders_ticks_callback(const ira_interfaces::msg::EncodersTicks msg) {
         static uint offset = 0;
         this->encoders_ticks_mutex_.lock();
+        {
+            static rcl_time_point_value_t prev_ts_ns = 0;
+            auto now_ns = this->now().nanoseconds();
+            this->encoders_dt_ns_ = now_ns - prev_ts_ns;
+            prev_ts_ns = now_ns;
+        }
         this->encoders_ticks_latest_ = msg;
         this->left_wheel_ticks_hist_[offset] = msg.left_wheel_ticks;
         this->right_wheel_ticks_hist_[offset] = msg.right_wheel_ticks;
@@ -238,13 +246,15 @@ class UsadGUI : public rclcpp::Node {
         ImGui::Begin("Speedometer", visible, ImGuiWindowFlags_AlwaysAutoResize);
         {
             int ticks_l, ticks_r;
+            rcl_time_point_value_t dt_ns;
             this->encoders_ticks_mutex_.lock();
             ticks_l = (int)this->encoders_ticks_latest_.left_wheel_ticks;
             ticks_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
+            dt_ns = this->encoders_dt_ns_;
             this->encoders_ticks_mutex_.unlock();
-            speed_kph = (ticks_l * this->skf_l_ratio_tpm_ +
-                         ticks_r * this->skf_r_ratio_tpm_) /
-                        2 / ImGui::GetIO().DeltaTime * 3.6f;
+            speed_kph = (ticks_l * this->skf_l_ratio_mpt_ +
+                         ticks_r * this->skf_r_ratio_mpt_) /
+                        2 / (dt_ns / 1000000000.f) * 3.6f;
         }
         // if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
         ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(15, 135, 250, 255));
@@ -279,19 +289,18 @@ class UsadGUI : public rclcpp::Node {
 
    public:
     UsadGUI() : Node("usad_gui") {
-        this->declare_parameter("skf_l_ratio_tpm", 0.007225956f);
-        this->declare_parameter("skf_r_ratio_tpm", 0.007178236f);
-        this->skf_l_ratio_tpm_ =
-            (float)this->get_parameter("skf_l_ratio_tpm").as_double();
-        this->skf_r_ratio_tpm_ =
-            (float)this->get_parameter("skf_r_ratio_tpm").as_double();
+        this->declare_parameter("skf_l_ratio_mpt", 0.007225956f);
+        this->declare_parameter("skf_r_ratio_mpt", 0.007178236f);
+        this->skf_l_ratio_mpt_ =
+            (float)this->get_parameter("skf_l_ratio_mpt").as_double();
+        this->skf_r_ratio_mpt_ =
+            (float)this->get_parameter("skf_r_ratio_mpt").as_double();
         this->encoders_ticks_sub_ =
             this->create_subscription<ira_interfaces::msg::EncodersTicks>(
                 "encoders_ticks", 10,
                 std::bind(&UsadGUI::encoders_ticks_callback, this, _1));
         this->leane_abs_sub_ = this->create_subscription<std_msgs::msg::Int32>(
             "leane_abs", 10, std::bind(&UsadGUI::leane_abs_callback, this, _1));
-
         this->timer_ = this->create_wall_timer(
             32ms, std::bind(&UsadGUI::gui_callback, this));
     }
