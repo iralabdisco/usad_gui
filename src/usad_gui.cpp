@@ -141,6 +141,19 @@ class UsadGUI : public rclcpp::Node {
             }
 
             ImGui::Separator();
+            float last_packet_dt =
+                (this->now().nanoseconds() - this->encoders_prev_ts_ns_) /
+                (float)1e6;
+            ImGui::Text("Packet Delta: %.3f ms", last_packet_dt);
+            ImGui::Text("Control Board Status: ");
+            ImGui::SameLine();
+            if (last_packet_dt > 100.f) {
+                ImGui::TextColored({1.f, 0.f, 0.f, 1.f}, "OFFLINE");
+            } else if (last_packet_dt > 55.f) {
+                ImGui::TextColored({1.f, 0.55f, 0.f, 1.f}, "ONLINE (HL)");
+            } else {
+                ImGui::TextColored({0.f, 1.f, 0.f, 1.f}, "ONLINE");
+            }
             ImGui::Text("Rendering: %.3f ms/frame (%.1f FPS)",
                         1000.0f / ImGui::GetIO().Framerate,
                         ImGui::GetIO().Framerate);
