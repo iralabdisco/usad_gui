@@ -144,7 +144,11 @@ class UsadGUI : public rclcpp::Node {
             float last_packet_dt =
                 (this->now().nanoseconds() - this->encoders_prev_ts_ns_) /
                 (float)1e6;
-            ImGui::Text("Packet Delta: %.3f ms", last_packet_dt);
+            static float disp_packet_dt = 0;
+            if(last_packet_dt > 45) {
+                disp_packet_dt = last_packet_dt;
+            }
+            ImGui::Text("Packet Delta: %.3f ms", disp_packet_dt);
             ImGui::Text("Control Board Status: ");
             ImGui::SameLine();
             if (last_packet_dt > 100.f) {
