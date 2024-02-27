@@ -49,7 +49,10 @@ SDL_Window* usad_window_;
 SDL_WindowFlags usad_window_flags_;
 
 constexpr unsigned int display_hist_size_ = 128;
-constexpr int leane_default_tdc_ = 2048;
+constexpr int leane_top_ = 4096;
+constexpr int leane_bottom_ = 0;
+constexpr int leane_min_real_ = 900;
+constexpr int leane_max_real_ = 3550;
 
 ImFont* font_default;
 ImFont* font_dseg_big;
@@ -71,11 +74,14 @@ class UsadGUI : public rclcpp::Node {
     ira_interfaces::msg::EncodersTicks encoders_ticks_latest_;
     float left_wheel_ticks_hist_[display_hist_size_] = {0};
     float right_wheel_ticks_hist_[display_hist_size_] = {0};
+    rcl_time_point_value_t encoders_prev_ts_ns_ = 0;
     rcl_time_point_value_t encoders_dt_ns_;
 
     std_msgs::msg::Int32 leane_abs_latest_;
     float leane_abs_hist_[display_hist_size_] = {0};
-    int leane_tdc_ = leane_default_tdc_;
+    int leane_tdc_ = (leane_top_ + leane_bottom_) / 2;
+    int leane_min_ = leane_top_;
+    int leane_max_ = leane_bottom_;
 
     float cmd_vel_x_, cmd_vel_theta_;
     unsigned int cmd_vel_count_;
@@ -91,10 +97,9 @@ class UsadGUI : public rclcpp::Node {
     void encoders_ticks_callback(const ira_interfaces::msg::EncodersTicks msg) {
         static uint offset = 0;
         {
-            static rcl_time_point_value_t prev_ts_ns = 0;
             auto now_ns = this->now().nanoseconds();
-            this->encoders_dt_ns_ = now_ns - prev_ts_ns;
-            prev_ts_ns = now_ns;
+            this->encoders_dt_ns_ = now_ns - this->encoders_prev_ts_ns_;
+            this->encoders_prev_ts_ns_ = now_ns;
         }
         this->encoders_ticks_latest_ = msg;
         this->left_wheel_ticks_hist_[offset] = msg.left_wheel_ticks;
@@ -157,6 +162,23 @@ class UsadGUI : public rclcpp::Node {
             }
 
             ImGui::Separator();
+            float last_packet_dt =
+                (this->now().nanoseconds() - this->encoders_prev_ts_ns_) /
+                (float)1e6;
+            static float disp_packet_dt = 0;
+            if(last_packet_dt > 45) {
+                disp_packet_dt = last_packet_dt;
+            }
+            ImGui::Text("Packet Delta: %.3f ms", disp_packet_dt);
+            ImGui::Text("Control Board Status: ");
+            ImGui::SameLine();
+            if (last_packet_dt > 100.f) {
+                ImGui::TextColored({1.f, 0.f, 0.f, 1.f}, "OFFLINE");
+            } else if (last_packet_dt > 55.f) {
+                ImGui::TextColored({1.f, 0.55f, 0.f, 1.f}, "ONLINE (HL)");
+            } else {
+                ImGui::TextColored({0.f, 1.f, 0.f, 1.f}, "ONLINE");
+            }
             ImGui::Text("Rendering: %.3f ms/frame (%.1f FPS)",
                         1000.0f / ImGui::GetIO().Framerate,
                         ImGui::GetIO().Framerate);
@@ -200,11 +222,12 @@ class UsadGUI : public rclcpp::Node {
         // ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
         ImGui::Begin("Encoders", visible, ImGuiWindowFlags_AlwaysAutoResize);
         // SKF
-        ImGui::BeginGroup();
         int latest_l = (int)this->encoders_ticks_latest_.left_wheel_ticks;
         int latest_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
         ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-        ImGui::Text("SKF Left Wheel (ticks)");
+        ImGui::SeparatorText("SKF Wheel Bearing Encoders");
+        ImGui::BeginGroup();
+        ImGui::Text("Left Wheel (ticks)");
         ImGui::SliderInt("##", &latest_l, 0, 100);
         ImGui::PlotLines("##", this->left_wheel_ticks_hist_,
                          IM_ARRAYSIZE(this->left_wheel_ticks_hist_), 0, nullptr,
@@ -213,7 +236,7 @@ class UsadGUI : public rclcpp::Node {
         ImGui::EndGroup();
         ImGui::BeginGroup();
         ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-        ImGui::Text("SKF Right Wheel (ticks)");
+        ImGui::Text("Right Wheel (ticks)");
         ImGui::SliderInt("##", &latest_r, 0, 100);
         ImGui::PlotLines("##", this->right_wheel_ticks_hist_,
                          IM_ARRAYSIZE(this->right_wheel_ticks_hist_), 0,
@@ -221,23 +244,20 @@ class UsadGUI : public rclcpp::Node {
         ImGui::PopItemWidth();
         ImGui::EndGroup();
         // Leane
+        ImGui::SeparatorText("Leane");
         int latest_lea = this->leane_abs_latest_.data;
         float latest_lea_percent =
             (this->leane_abs_latest_.data - this->leane_tdc_) / 40.96f;
+        static bool auto_tdc = true;
+        if (latest_lea < this->leane_min_ && latest_lea > leane_min_real_)
+            this->leane_min_ = latest_lea;
+        if (latest_lea > this->leane_max_ && latest_lea < leane_max_real_)
+            this->leane_max_ = latest_lea;
+        if (auto_tdc)
+            this->leane_tdc_ = (this->leane_min_ + this->leane_max_) / 2;
         ImGui::BeginGroup();
         ImGuiKnobs::Knob("Leane Orientation", &latest_lea_percent, -50.f, 50.f,
                          0.1f, "%.1f%%", ImGuiKnobVariant_Tick, 125.f);
-        ImGui::BeginGroup();
-        ImGui::Text("TDC");
-        ImGui::SameLine();
-        if (ImGui::Button("Set")) {
-            this->leane_tdc_ = latest_lea;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Reset")) {
-            this->leane_tdc_ = leane_default_tdc_;
-        }
-        ImGui::EndGroup();
         ImGui::EndGroup();
         ImGui::SameLine();
         ImGui::BeginGroup();
@@ -247,7 +267,26 @@ class UsadGUI : public rclcpp::Node {
         ImGui::PlotLines("##", this->leane_abs_hist_,
                          IM_ARRAYSIZE(this->leane_abs_hist_), 0, nullptr, 0.f,
                          4096.f, ImVec2(0, 100.f));
+        ImGui::Checkbox("Auto TDC", &auto_tdc);
         ImGui::EndGroup();
+        if (ImGui::CollapsingHeader("Advanced")) {
+            ImGui::BeginGroup();
+            if (!auto_tdc) {
+                if (ImGui::Button("Set")) this->leane_tdc_ = latest_lea;
+                ImGui::SameLine();
+            }
+            if (ImGui::Button("Reset")) {
+                this->leane_tdc_ = (leane_top_ + leane_bottom_) / 2;
+                this->leane_min_ = leane_top_;
+                this->leane_max_ = leane_bottom_;
+            }
+            ImGui::SameLine();
+            ImGui::Text("TDC: %d", this->leane_tdc_);
+            ImGui::EndGroup();
+            ImGui::Text("Min: %d - Max: %d - Mid: %d", this->leane_min_,
+                        this->leane_max_,
+                        (this->leane_max_ + this->leane_min_) / 2);
+        }
         ImGui::End();
     }
 
@@ -386,7 +425,7 @@ int main(int argc, char** argv) {
     ImGui_ImplOpenGL3_Init();
 
     font_default = io.Fonts->AddFontFromFileTTF(
-        "default.ttf", 16.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+        "default.ttf", 20.0f, NULL, io.Fonts->GetGlyphRangesDefault());
     font_dseg_big = io.Fonts->AddFontFromFileTTF(
         "dseg.ttf", 192.0f, NULL, io.Fonts->GetGlyphRangesDefault());
     font_dseg = io.Fonts->AddFontFromFileTTF("dseg.ttf", 48.0f, NULL,
