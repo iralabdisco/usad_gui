@@ -184,7 +184,6 @@ class UsadGUI : public rclcpp::Node {
         // ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
         ImGui::Begin("Encoders", visible, ImGuiWindowFlags_AlwaysAutoResize);
         // SKF
-        ImGui::BeginGroup();
         int latest_l = (int)this->encoders_ticks_latest_.left_wheel_ticks;
         int latest_r = (int)this->encoders_ticks_latest_.right_wheel_ticks;
         ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
