@@ -26,14 +26,19 @@
 #include <queue>
 #include <string>
 
-#include "../imgui-1.90/backends/imgui_impl_opengl3.h"
-#include "../imgui-1.90/backends/imgui_impl_sdl2.h"
-#include "../imgui-1.90/imgui.h"
-#include "../imgui-knobs-main/imgui-knobs.h"
+// ROS
+#include "geometry_msgs/msg/twist.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
 #include "ira_interfaces/msg/encoders_ticks.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/time.hpp"
 #include "std_msgs/msg/int32.hpp"
+
+// ImGui
+#include "../imgui-1.90/backends/imgui_impl_opengl3.h"
+#include "../imgui-1.90/backends/imgui_impl_sdl2.h"
+#include "../imgui-1.90/imgui.h"
+#include "../imgui-knobs-main/imgui-knobs.h"
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -55,9 +60,11 @@ class UsadGUI : public rclcpp::Node {
     rclcpp::Subscription<ira_interfaces::msg::EncodersTicks>::SharedPtr
         encoders_ticks_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr leane_abs_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
     bool show_encoders_window_ = true;
     bool show_speedometer_window_ = true;
+    bool show_cmd_vel_window_ = true;
 
     float skf_l_ratio_mpt_, skf_r_ratio_mpt_;
 
@@ -69,6 +76,9 @@ class UsadGUI : public rclcpp::Node {
     std_msgs::msg::Int32 leane_abs_latest_;
     float leane_abs_hist_[display_hist_size_] = {0};
     int leane_tdc_ = leane_default_tdc_;
+
+    float cmd_vel_x_, cmd_vel_theta_;
+    unsigned int cmd_vel_count_;
 
     void leane_abs_callback(const std_msgs::msg::Int32 msg) {
         static uint offset = 0;
@@ -91,6 +101,12 @@ class UsadGUI : public rclcpp::Node {
         this->right_wheel_ticks_hist_[offset] = msg.right_wheel_ticks;
         offset++;
         if (offset >= display_hist_size_) offset = 0;
+    }
+
+    void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr cmd_vel) {
+        this->cmd_vel_x_ = cmd_vel->linear.x;
+        this->cmd_vel_theta_ = cmd_vel->angular.z;
+        this->cmd_vel_count_++;
     }
 
     void gui_callback() {
@@ -124,15 +140,20 @@ class UsadGUI : public rclcpp::Node {
                          ImGuiWindowFlags_NoCollapse |
                              ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_AlwaysAutoResize);
-            ImGui::Checkbox("Encoders", &show_encoders_window_);
-            ImGui::Checkbox("Speedometer", &show_speedometer_window_);
 
+            ImGui::Checkbox("Encoders", &show_encoders_window_);
             if (this->show_encoders_window_) {
-                this->draw_encoders_window(&show_encoders_window_);
+                this->draw_encoders_window(&this->show_encoders_window_);
             }
 
+            ImGui::Checkbox("Speedometer", &show_speedometer_window_);
             if (this->show_speedometer_window_) {
-                this->draw_speedometer_window(&show_speedometer_window_);
+                this->draw_speedometer_window(&this->show_speedometer_window_);
+            }
+
+            ImGui::Checkbox("Velocity Command", &show_speedometer_window_);
+            if (this->show_cmd_vel_window_) {
+                this->draw_cmd_vel_window(&this->show_cmd_vel_window_);
             }
 
             ImGui::Separator();
@@ -288,6 +309,16 @@ class UsadGUI : public rclcpp::Node {
         ImGui::End();
     }
 
+    void draw_cmd_vel_window(bool* visible) {
+        ImGui::Begin("Velocity Command", visible,
+                     ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text(
+            "Speed Setpoint: %.3fm/s - Angle Setpoint: %.3frad - Total "
+            "Commands: %d",
+            this->cmd_vel_x_, this->cmd_vel_theta_, this->cmd_vel_count_);
+        ImGui::End();
+    }
+
    public:
     UsadGUI() : Node("usad_gui") {
         this->declare_parameter("skf_l_ratio_mpt", 0.007225956f);
@@ -302,6 +333,9 @@ class UsadGUI : public rclcpp::Node {
                 std::bind(&UsadGUI::encoders_ticks_callback, this, _1));
         this->leane_abs_sub_ = this->create_subscription<std_msgs::msg::Int32>(
             "leane_abs", 10, std::bind(&UsadGUI::leane_abs_callback, this, _1));
+        this->cmd_vel_sub_ =
+            this->create_subscription<geometry_msgs::msg::Twist>(
+                "cmd_vel", 10, std::bind(&UsadGUI::cmd_vel_callback, this, _1));
         this->timer_ = this->create_wall_timer(
             32ms, std::bind(&UsadGUI::gui_callback, this));
     }
