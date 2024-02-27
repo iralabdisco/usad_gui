@@ -391,7 +391,7 @@ int main(int argc, char** argv) {
     ImGui_ImplOpenGL3_Init();
 
     font_default = io.Fonts->AddFontFromFileTTF(
-        "default.ttf", 16.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+        "default.ttf", 20.0f, NULL, io.Fonts->GetGlyphRangesDefault());
     font_dseg_big = io.Fonts->AddFontFromFileTTF(
         "dseg.ttf", 192.0f, NULL, io.Fonts->GetGlyphRangesDefault());
     font_dseg = io.Fonts->AddFontFromFileTTF("dseg.ttf", 48.0f, NULL,
