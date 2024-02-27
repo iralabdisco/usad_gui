@@ -67,6 +67,7 @@ class UsadGUI : public rclcpp::Node {
     ira_interfaces::msg::EncodersTicks encoders_ticks_latest_;
     float left_wheel_ticks_hist_[display_hist_size_] = {0};
     float right_wheel_ticks_hist_[display_hist_size_] = {0};
+    rcl_time_point_value_t encoders_prev_ts_ns_ = 0;
     rcl_time_point_value_t encoders_dt_ns_;
 
     std_msgs::msg::Int32 leane_abs_latest_;
@@ -86,10 +87,9 @@ class UsadGUI : public rclcpp::Node {
     void encoders_ticks_callback(const ira_interfaces::msg::EncodersTicks msg) {
         static uint offset = 0;
         {
-            static rcl_time_point_value_t prev_ts_ns = 0;
             auto now_ns = this->now().nanoseconds();
-            this->encoders_dt_ns_ = now_ns - prev_ts_ns;
-            prev_ts_ns = now_ns;
+            this->encoders_dt_ns_ = now_ns - this->encoders_prev_ts_ns_;
+            this->encoders_prev_ts_ns_ = now_ns;
         }
         this->encoders_ticks_latest_ = msg;
         this->left_wheel_ticks_hist_[offset] = msg.left_wheel_ticks;
