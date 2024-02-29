@@ -360,7 +360,7 @@ class UsadGUI : public rclcpp::Node {
             trip_odo = .0f;
         }
         ImGui::SameLine();
-        ImGui::Text("Top Speed: %2.0fkm/h - Trip: %3.2fkm", max_speed_kph,
+        ImGui::Text("Top Speed: %2.0f km/h - Trip: %3.2f km", max_speed_kph,
                     trip_odo);
         ImGui::End();
     }
@@ -369,7 +369,7 @@ class UsadGUI : public rclcpp::Node {
         ImGui::Begin("Velocity Command", visible,
                      ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::Text(
-            "Speed Setpoint: %.3fm/s\nAngle Setpoint: %.3frad\nTotal "
+            "Speed Setpoint: %.3f m/s\nAngle Setpoint: %.3f rad\nTotal "
             "Commands: %d",
             this->cmd_vel_x_, this->cmd_vel_theta_, this->cmd_vel_count_);
         ImGui::End();
