@@ -166,44 +166,55 @@ class UsadGUI : public rclcpp::Node {
             }
 
             ImGui::Separator();
-            float last_packet_dt =
-                (this->now().nanoseconds() - this->encoders_prev_ts_ns_) /
-                (float)1e6;
-            static float disp_packet_dt = 0;
-            if (last_packet_dt > 45) {
-                disp_packet_dt = last_packet_dt;
+
+            // Draw Control Board Status and DeltaT
+            {
+                static float disp_packet_dt_ms = 0;
+                float last_packet_dt_ms =
+                    (this->now().nanoseconds() - this->encoders_prev_ts_ns_) /
+                    (float)1e6;
+                if (last_packet_dt_ms < 0 || last_packet_dt_ms > 60000.f) {
+                    disp_packet_dt_ms = -1;
+                } else if (last_packet_dt_ms > 45.f) {
+                    disp_packet_dt_ms = last_packet_dt_ms;
+                }
+                ImGui::Text("Packet DT: %.3f ms", disp_packet_dt_ms);
+                ImGui::Text("Control Board Status: ");
+                ImGui::SameLine();
+                if (last_packet_dt_ms > 100.f) {
+                    ImGui::TextColored({1.f, 0.f, 0.f, 1.f}, "OFFLINE");
+                } else if (last_packet_dt_ms > 55.f) {
+                    ImGui::TextColored({1.f, 0.55f, 0.f, 1.f}, "ONLINE (HL)");
+                } else {
+                    ImGui::TextColored({0.f, 1.f, 0.f, 1.f}, "ONLINE");
+                }
             }
-            ImGui::Text("Packet Delta: %.3f ms", disp_packet_dt);
-            ImGui::Text("Control Board Status: ");
-            ImGui::SameLine();
-            if (last_packet_dt > 100.f) {
-                ImGui::TextColored({1.f, 0.f, 0.f, 1.f}, "OFFLINE");
-            } else if (last_packet_dt > 55.f) {
-                ImGui::TextColored({1.f, 0.55f, 0.f, 1.f}, "ONLINE (HL)");
-            } else {
-                ImGui::TextColored({0.f, 1.f, 0.f, 1.f}, "ONLINE");
-            }
-            ImGui::Text("Rendering: %.3f ms/frame (%.1f FPS)",
-                        1000.0f / ImGui::GetIO().Framerate,
-                        ImGui::GetIO().Framerate);
+
             if (ImGui::CollapsingHeader("About")) {
                 ImGui::TextWrapped(
                     "USAD GUI\n"
                     "Copyright (C) 2022  Jacopo Maltagliati\n"
-                    "Released under the Apache v2 License.\n\n"
+                    "Released under the Apache v2 License.\n"
+                    "\n"
                     "Dear ImGui v1.90\n"
                     "Copyright (c) 2014-2023 Omar Cornut\n"
-                    "Released under the MIT license.\n\n"
+                    "Released under the MIT license.\n"
+                    "\n"
                     "ImGui Knobs\n"
                     "Copyright (c) 2022 Simon Altschuler\n"
-                    "Released under the MIT license.\n\n"
+                    "Released under the MIT license.\n"
+                    "\n"
                     "DSEG Fonts 0.46\n"
                     "Copyright (c) 2020 Keshikan (www.keshikan.net)\n"
-                    "Licensed under SIL OPEN FONT LICENSE Version 1.1.\n\n"
+                    "Licensed under SIL OPEN FONT LICENSE Version 1.1.\n"
+                    "\n"
                     "Roboto Font\n"
                     "Copyright (c) 2015 Google Inc.\n"
-                    "Released under the Apache v2 License.\n\n");
+                    "Released under the Apache v2 License.\n");
                 ImGui::Separator();
+                ImGui::Text("Render time: %.3f ms/frame (%.1f FPS)",
+                            1000.0f / ImGui::GetIO().Framerate,
+                            ImGui::GetIO().Framerate);
                 ImGui::Text("Built on ImGui v%s (%d)", IMGUI_VERSION,
                             IMGUI_VERSION_NUM);
             }
