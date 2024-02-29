@@ -69,9 +69,9 @@ class UsadGUI : public rclcpp::Node {
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr leane_abs_sub_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
-    bool show_encoders_window_ = true;
-    bool show_speedometer_window_ = true;
-    bool show_cmd_vel_window_ = true;
+    bool show_encoders_window_ = false;
+    bool show_speedometer_window_ = false;
+    bool show_cmd_vel_window_ = false;
 
     float skf_l_ratio_mpt_, skf_r_ratio_mpt_;
 
@@ -436,6 +436,7 @@ int main(int argc, char** argv) {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
+        io.IniFilename = NULL;
 
         font_default_ = io.Fonts->AddFontFromFileTTF(
             "default.ttf", 20.0f, NULL, io.Fonts->GetGlyphRangesDefault());
