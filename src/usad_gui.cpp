@@ -160,7 +160,7 @@ class UsadGUI : public rclcpp::Node {
                 this->draw_speedometer_window(&this->show_speedometer_window_);
             }
 
-            ImGui::Checkbox("Velocity Command", &show_speedometer_window_);
+            ImGui::Checkbox("Velocity Command", &show_cmd_vel_window_);
             if (this->show_cmd_vel_window_) {
                 this->draw_cmd_vel_window(&this->show_cmd_vel_window_);
             }
