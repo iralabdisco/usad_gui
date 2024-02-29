@@ -39,6 +39,14 @@
 #include "../imgui-1.90/imgui.h"
 #include "../imgui-knobs-main/imgui-knobs.h"
 
+#ifndef FONTS_PREFIX
+#error The FONTS_PREFIX variable is not set. Check your CMakeLists.txt!
+#else
+#define XSTR(s) STR(s)
+#define STR(s) #s
+#define FONT_LOC(fname) XSTR(FONTS_PREFIX) "/" fname
+#endif
+
 #if !SDL_VERSION_ATLEAST(2, 0, 17)
 #error This application requires SDL 2.0.17 or above.
 #endif
@@ -439,11 +447,14 @@ int main(int argc, char** argv) {
         io.IniFilename = NULL;
 
         font_default_ = io.Fonts->AddFontFromFileTTF(
-            "default.ttf", 20.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+            FONT_LOC("Roboto-Regular.ttf"), 20.0f, NULL,
+            io.Fonts->GetGlyphRangesDefault());
         font_dseg_big_ = io.Fonts->AddFontFromFileTTF(
-            "dseg.ttf", 192.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+            FONT_LOC("DSEG14Classic-Italic.ttf"), 192.0f, NULL,
+            io.Fonts->GetGlyphRangesDefault());
         font_dseg_ = io.Fonts->AddFontFromFileTTF(
-            "dseg.ttf", 48.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+            FONT_LOC("DSEG14Classic-Italic.ttf"), 48.0f, NULL,
+            io.Fonts->GetGlyphRangesDefault());
 
 #ifdef USE_LIGHT_THEME
         ImGui::StyleColorsLight();

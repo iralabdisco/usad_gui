@@ -5,8 +5,6 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-set(OpenGL_GL_PREFERENCE GLVND)
-
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -41,10 +39,15 @@ ament_target_dependencies(usad_gui
 target_include_directories(usad_gui PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-  target_link_libraries(usad_gui ${SDL2_LIBRARIES} ${OPENGL_LIBRARIES})
+  target_link_libraries(usad_gui ${SDL2_LIBRARIES})
 target_compile_features(usad_gui PUBLIC c_std_99 cxx_std_17)
 
 install(TARGETS usad_gui DESTINATION lib/${PROJECT_NAME})
+
+add_compile_definitions(FONTS_PREFIX=install/${PROJECT_NAME}/share/${PROJECT_NAME}/fonts)
+
+install(FILES fonts/DSEG14Classic-Italic.ttf DESTINATION share/${PROJECT_NAME}/fonts)
+install(FILES fonts/Roboto-Regular.ttf DESTINATION share/${PROJECT_NAME}/fonts)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
