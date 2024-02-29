@@ -322,7 +322,7 @@ class UsadGUI : public rclcpp::Node {
             distance = (ticks_l * this->skf_l_ratio_mpt_ +
                         ticks_r * this->skf_r_ratio_mpt_) /
                        2;
-            trip_odo += distance / 1000.f;
+            trip_odo += abs(distance / 1000.f);
             speed_kph = distance / (dt_ns / 1000000000.f) * 3.6f;
             if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
         }
