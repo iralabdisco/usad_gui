@@ -19,7 +19,6 @@
  */
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
 
 #include <chrono>
 #include <mutex>
@@ -35,28 +34,33 @@
 #include "std_msgs/msg/int32.hpp"
 
 // ImGui
-#include "../imgui-1.90/backends/imgui_impl_opengl3.h"
 #include "../imgui-1.90/backends/imgui_impl_sdl2.h"
+#include "../imgui-1.90/backends/imgui_impl_sdlrenderer2.h"
 #include "../imgui-1.90/imgui.h"
 #include "../imgui-knobs-main/imgui-knobs.h"
+
+#if !SDL_VERSION_ATLEAST(2, 0, 17)
+#error This application requires SDL 2.0.17 or above.
+#endif
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
 
-constexpr ImVec4 clear_color_ = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 SDL_GLContext usad_gl_context_;
+SDL_Renderer* usad_renderer_;
 SDL_Window* usad_window_;
 SDL_WindowFlags usad_window_flags_;
+
+constexpr ImVec4 clear_color_ = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+ImFont* font_default_;
+ImFont* font_dseg_;
+ImFont* font_dseg_big_;
 
 constexpr unsigned int display_hist_size_ = 128;
 constexpr int leane_top_ = 4096;
 constexpr int leane_bottom_ = 0;
-constexpr int leane_min_real_ = 900;
 constexpr int leane_max_real_ = 3550;
-
-ImFont* font_default;
-ImFont* font_dseg_big;
-ImFont* font_dseg;
+constexpr int leane_min_real_ = 900;
 
 class UsadGUI : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
@@ -134,13 +138,13 @@ class UsadGUI : public rclcpp::Node {
             }
         }
 
-        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame(usad_window_);
         ImGui::NewFrame();
 
         // Draw main window
         {
-            ImGui::SetNextWindowSize(ImVec2(320, 210));
+            ImGui::SetNextWindowSize(ImVec2(320, 240));
             ImGui::Begin("Toolbox", nullptr,
                          ImGuiWindowFlags_NoCollapse |
                              ImGuiWindowFlags_NoResize |
@@ -166,7 +170,7 @@ class UsadGUI : public rclcpp::Node {
                 (this->now().nanoseconds() - this->encoders_prev_ts_ns_) /
                 (float)1e6;
             static float disp_packet_dt = 0;
-            if(last_packet_dt > 45) {
+            if (last_packet_dt > 45) {
                 disp_packet_dt = last_packet_dt;
             }
             ImGui::Text("Packet Delta: %.3f ms", disp_packet_dt);
@@ -208,14 +212,16 @@ class UsadGUI : public rclcpp::Node {
 
         // Rendering
         ImGui::Render();
-        glViewport(0, 0, (int)ImGui::GetIO().DisplaySize.x,
-                   (int)ImGui::GetIO().DisplaySize.y);
-        glClearColor(clear_color_.x * clear_color_.w,
-                     clear_color_.y * clear_color_.w,
-                     clear_color_.z * clear_color_.w, clear_color_.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        SDL_GL_SwapWindow(usad_window_);
+        SDL_RenderSetScale(usad_renderer_,
+                           (int)ImGui::GetIO().DisplayFramebufferScale.x,
+                           (int)ImGui::GetIO().DisplayFramebufferScale.y);
+        SDL_SetRenderDrawColor(usad_renderer_, (Uint8)(clear_color_.x * 255),
+                               (Uint8)(clear_color_.y * 255),
+                               (Uint8)(clear_color_.z * 255),
+                               (Uint8)(clear_color_.w * 255));
+        SDL_RenderClear(usad_renderer_);
+        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
+        SDL_RenderPresent(usad_renderer_);
     }
 
     void draw_encoders_window(bool* visible) {
@@ -256,12 +262,12 @@ class UsadGUI : public rclcpp::Node {
         if (auto_tdc)
             this->leane_tdc_ = (this->leane_min_ + this->leane_max_) / 2;
         ImGui::BeginGroup();
-        ImGuiKnobs::Knob("Leane Orientation", &latest_lea_percent, -50.f, 50.f,
-                         0.1f, "%.1f%%", ImGuiKnobVariant_Tick, 125.f);
+        ImGuiKnobs::Knob("Orientation", &latest_lea_percent, -50.f, 50.f, 0.1f,
+                         "%.1f%%", ImGuiKnobVariant_Tick, 125.f);
         ImGui::EndGroup();
         ImGui::SameLine();
         ImGui::BeginGroup();
-        ImGui::Text("Leane Data (raw)");
+        ImGui::Text("Data (raw)");
         ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
         ImGui::SliderInt("##", &latest_lea, 0, 4096);
         ImGui::PlotLines("##", this->leane_abs_hist_,
@@ -311,7 +317,7 @@ class UsadGUI : public rclcpp::Node {
         }
         // if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
         ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(15, 135, 250, 255));
-        ImGui::PushFont(font_dseg_big);
+        ImGui::PushFont(font_dseg_big_);
         if (speed_kph < .0f) {
             speed_kph = fabs(speed_kph);
             if (speed_kph < 10.f) {
@@ -327,7 +333,7 @@ class UsadGUI : public rclcpp::Node {
             }
         }
         ImGui::PopFont();
-        ImGui::PushFont(font_dseg);
+        ImGui::PushFont(font_dseg_);
         ImGui::SameLine();
         ImGui::BeginGroup();
         ImGuiKnobs::Knob("##", &speed_kph, 0.f, 50.f, 0.1f, "",
@@ -352,7 +358,7 @@ class UsadGUI : public rclcpp::Node {
         ImGui::Begin("Velocity Command", visible,
                      ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::Text(
-            "Speed Setpoint: %.3fm/s - Angle Setpoint: %.3frad - Total "
+            "Speed Setpoint: %.3fm/s\nAngle Setpoint: %.3frad\nTotal "
             "Commands: %d",
             this->cmd_vel_x_, this->cmd_vel_theta_, this->cmd_vel_count_);
         ImGui::End();
@@ -381,62 +387,66 @@ class UsadGUI : public rclcpp::Node {
 };
 
 int main(int argc, char** argv) {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) !=
-        0) {
-        fprintf(stderr, "Error: %s\n", SDL_GetError());
-        exit(EXIT_FAILURE);
+    // SDL Initialization
+    {
+        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+            std::stringstream ss;
+            ss << "Unable to initialize SDL. Reason: " << SDL_GetError();
+            throw std::runtime_error(ss.str().c_str());
+        }
+
+#ifdef SDL_HINT_IME_SHOW_UI
+        SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+#endif
+
+        usad_window_flags_ =
+            (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+        usad_window_ = SDL_CreateWindow("USAD GUI", SDL_WINDOWPOS_CENTERED,
+                                        SDL_WINDOWPOS_CENTERED, 1280, 720,
+                                        usad_window_flags_);
+        if (usad_window_ == nullptr) {
+            std::stringstream ss;
+            ss << "Unable to create SDL Window. Reason: " << SDL_GetError();
+            throw std::runtime_error(ss.str().c_str());
+        }
+
+        usad_renderer_ = SDL_CreateRenderer(
+            usad_window_, -1,
+            SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
+        if (usad_renderer_ == nullptr) {
+            std::stringstream ss;
+            ss << "Unable to create SDL Renderer. Reason: " << SDL_GetError();
+            throw std::runtime_error(ss.str().c_str());
+        }
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                        SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    usad_window_flags_ =
-        (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
-                          SDL_WINDOW_ALLOW_HIGHDPI);
-    usad_window_ =
-        SDL_CreateWindow("USAD GUI", SDL_WINDOWPOS_CENTERED,
-                         SDL_WINDOWPOS_CENTERED, 1280, 720, usad_window_flags_);
-    usad_gl_context_ = SDL_GL_CreateContext(usad_window_);
-    SDL_GL_MakeCurrent(usad_window_, usad_gl_context_);
-    SDL_GL_SetSwapInterval(1);  // Enable vsync
+    // ImGui Initialization
+    {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
 
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    // (void)io;
-#if 0
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-        // Enable Keyboard Controls
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-        // Enable Gamepad Controls
-        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-        // IF using Docking Branch
+        font_default_ = io.Fonts->AddFontFromFileTTF(
+            "default.ttf", 20.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+        font_dseg_big_ = io.Fonts->AddFontFromFileTTF(
+            "dseg.ttf", 192.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+        font_dseg_ = io.Fonts->AddFontFromFileTTF(
+            "dseg.ttf", 48.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+
+#ifdef USE_LIGHT_THEME
+        ImGui::StyleColorsLight();
 #endif
-    // ImGui::StyleColorsLight();
 
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(usad_window_, usad_gl_context_);
-    ImGui_ImplOpenGL3_Init();
-
-    font_default = io.Fonts->AddFontFromFileTTF(
-        "default.ttf", 20.0f, NULL, io.Fonts->GetGlyphRangesDefault());
-    font_dseg_big = io.Fonts->AddFontFromFileTTF(
-        "dseg.ttf", 192.0f, NULL, io.Fonts->GetGlyphRangesDefault());
-    font_dseg = io.Fonts->AddFontFromFileTTF("dseg.ttf", 48.0f, NULL,
-                                             io.Fonts->GetGlyphRangesDefault());
+        ImGui_ImplSDL2_InitForSDLRenderer(usad_window_, usad_renderer_);
+        ImGui_ImplSDLRenderer2_Init(usad_renderer_);
+    }
 
     // RCL
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<UsadGUI>());
     rclcpp::shutdown();
 
-    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDLRenderer2_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 

@@ -17,7 +17,6 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(ira_interfaces REQUIRED)  
 find_package(SDL2 REQUIRED)
-find_package(OpenGL REQUIRED)
 
 include_directories(${SDL2_INCLUDE_DIRS} 
                     ${CMAKE_CURRENT_SOURCE_DIR}/imgui-1.90
@@ -28,8 +27,8 @@ add_executable(usad_gui src/usad_gui.cpp
                         imgui-1.90/imgui_tables.cpp
                         imgui-1.90/imgui_widgets.cpp
                         imgui-1.90/imgui.cpp
-                        imgui-1.90/backends/imgui_impl_opengl3.cpp 
                         imgui-1.90/backends/imgui_impl_sdl2.cpp
+                        imgui-1.90/backends/imgui_impl_sdlrenderer2.cpp 
                         imgui-knobs-main/imgui-knobs.cpp)
 ament_target_dependencies(usad_gui 
                           rclcpp
