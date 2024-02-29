@@ -120,12 +120,9 @@ class UsadGUI : public rclcpp::Node {
 
     void gui_callback() {
         static bool done = false;
-
         if (done) rclcpp::shutdown();
 
-        // Update all values in background
-
-        // Process events
+        // Process Events
         {
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
@@ -138,17 +135,17 @@ class UsadGUI : public rclcpp::Node {
             }
         }
 
+        // Start a new Frame
         ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame(usad_window_);
         ImGui::NewFrame();
 
-        // Draw main window
+        // Draw the UI
         {
-            ImGui::SetNextWindowSize(ImVec2(320, 240));
-            ImGui::Begin("Toolbox", nullptr,
-                         ImGuiWindowFlags_NoCollapse |
-                             ImGuiWindowFlags_NoResize |
-                             ImGuiWindowFlags_AlwaysAutoResize);
+            ImGui::SetNextWindowSize(ImVec2(350, 210));
+            ImGui::Begin(
+                "Toolbox", nullptr,
+                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
 
             ImGui::Checkbox("Encoders", &show_encoders_window_);
             if (this->show_encoders_window_) {
@@ -219,20 +216,23 @@ class UsadGUI : public rclcpp::Node {
                             IMGUI_VERSION_NUM);
             }
         }
+
         ImGui::End();
 
-        // Rendering
-        ImGui::Render();
-        SDL_RenderSetScale(usad_renderer_,
-                           (int)ImGui::GetIO().DisplayFramebufferScale.x,
-                           (int)ImGui::GetIO().DisplayFramebufferScale.y);
-        SDL_SetRenderDrawColor(usad_renderer_, (Uint8)(clear_color_.x * 255),
-                               (Uint8)(clear_color_.y * 255),
-                               (Uint8)(clear_color_.z * 255),
-                               (Uint8)(clear_color_.w * 255));
-        SDL_RenderClear(usad_renderer_);
-        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
-        SDL_RenderPresent(usad_renderer_);
+        // Render the Frame
+        {
+            ImGui::Render();
+            SDL_RenderSetScale(usad_renderer_,
+                               (int)ImGui::GetIO().DisplayFramebufferScale.x,
+                               (int)ImGui::GetIO().DisplayFramebufferScale.y);
+            SDL_SetRenderDrawColor(
+                usad_renderer_, (Uint8)(clear_color_.x * 255),
+                (Uint8)(clear_color_.y * 255), (Uint8)(clear_color_.z * 255),
+                (Uint8)(clear_color_.w * 255));
+            SDL_RenderClear(usad_renderer_);
+            ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
+            SDL_RenderPresent(usad_renderer_);
+        }
     }
 
     void draw_encoders_window(bool* visible) {
