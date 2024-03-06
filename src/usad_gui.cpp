@@ -19,6 +19,7 @@
  */
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #include <chrono>
 #include <mutex>
@@ -39,12 +40,13 @@
 #include "../imgui-1.90/imgui.h"
 #include "../imgui-knobs-main/imgui-knobs.h"
 
-#ifndef FONTS_PREFIX
-#error The FONTS_PREFIX variable is not set. Check your CMakeLists.txt!
+#ifndef RSRC_DIR_PREFIX
+#define RSRC_LOC(fname) fname
+#error The RSRC_DIR_PREFIX variable is not set. Check your CMakeLists.txt!
 #else
 #define XSTR(s) STR(s)
 #define STR(s) #s
-#define FONT_LOC(fname) XSTR(FONTS_PREFIX) "/" fname
+#define RSRC_LOC(fname) XSTR(RSRC_DIR_PREFIX) "/" fname
 #endif
 
 #if !SDL_VERSION_ATLEAST(2, 0, 17)
@@ -64,6 +66,8 @@ ImFont* font_default_;
 ImFont* font_dseg_;
 ImFont* font_dseg_big_;
 
+SDL_Texture* softesm_button_;
+
 constexpr unsigned int display_hist_size_ = 128;
 constexpr int leane_top_ = 4096;
 constexpr int leane_bottom_ = 0;
@@ -80,6 +84,7 @@ class UsadGUI : public rclcpp::Node {
     bool show_encoders_window_ = false;
     bool show_speedometer_window_ = false;
     bool show_cmd_vel_window_ = false;
+    bool show_emerg_stop_window_ = false;
 
     float skf_l_ratio_mpt_, skf_r_ratio_mpt_;
 
@@ -168,6 +173,11 @@ class UsadGUI : public rclcpp::Node {
             ImGui::Checkbox("Velocity Command", &show_cmd_vel_window_);
             if (this->show_cmd_vel_window_) {
                 this->draw_cmd_vel_window(&this->show_cmd_vel_window_);
+            }
+
+            ImGui::Checkbox("Emergency Stop", &show_emerg_stop_window_);
+            if (this->show_emerg_stop_window_) {
+                this->draw_emerg_stop_window(&this->show_emerg_stop_window_);
             }
 
             ImGui::Separator();
@@ -385,6 +395,16 @@ class UsadGUI : public rclcpp::Node {
         ImGui::End();
     }
 
+    void draw_emerg_stop_window(bool* visible) {
+        ImGui::Begin("Emergency Stop", visible,
+                     ImGuiWindowFlags_AlwaysAutoResize);
+        if (ImGui::ImageButton((ImTextureID)(intptr_t)softesm_button_,
+                               ImVec2(320, 320))) {
+            ;
+        }
+        ImGui::End();
+    }
+
    public:
     UsadGUI() : Node("usad_gui") {
         this->declare_parameter("skf_l_ratio_mpt", 0.007225956f);
@@ -449,14 +469,23 @@ int main(int argc, char** argv) {
         io.IniFilename = NULL;
 
         font_default_ = io.Fonts->AddFontFromFileTTF(
-            FONT_LOC("Roboto-Regular.ttf"), 20.0f, NULL,
+            RSRC_LOC("Roboto-Regular.ttf"), 20.0f, NULL,
             io.Fonts->GetGlyphRangesDefault());
         font_dseg_big_ = io.Fonts->AddFontFromFileTTF(
-            FONT_LOC("DSEG14Classic-Italic.ttf"), 192.0f, NULL,
+            RSRC_LOC("DSEG14Classic-Italic.ttf"), 192.0f, NULL,
             io.Fonts->GetGlyphRangesDefault());
         font_dseg_ = io.Fonts->AddFontFromFileTTF(
-            FONT_LOC("DSEG14Classic-Italic.ttf"), 48.0f, NULL,
+            RSRC_LOC("DSEG14Classic-Italic.ttf"), 48.0f, NULL,
             io.Fonts->GetGlyphRangesDefault());
+
+        softesm_button_ =
+            IMG_LoadTexture(usad_renderer_, RSRC_LOC("softesm.png"));
+        if (softesm_button_ == NULL) {
+            std::stringstream ss;
+            ss << "Unable to create the Emergency Stop Button texture. Reason: "
+               << SDL_GetError();
+            throw std::runtime_error(ss.str().c_str());
+        }
 
 #ifdef USE_LIGHT_THEME
         ImGui::StyleColorsLight();

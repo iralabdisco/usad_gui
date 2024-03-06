@@ -5,7 +5,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -15,8 +16,10 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(ira_interfaces REQUIRED)  
 find_package(SDL2 REQUIRED)
+find_package(SDL2_image REQUIRED)
 
-include_directories(${SDL2_INCLUDE_DIRS} 
+include_directories(${SDL2_INCLUDE_DIRS}
+                    ${SDL2_IMAGE_INCLUDE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/imgui-1.90
                     ${CMAKE_CURRENT_SOURCE_DIR}/imgui-knobs-main)
 
@@ -39,15 +42,16 @@ ament_target_dependencies(usad_gui
 target_include_directories(usad_gui PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-  target_link_libraries(usad_gui ${SDL2_LIBRARIES})
+  target_link_libraries(usad_gui ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES})
 target_compile_features(usad_gui PUBLIC c_std_99 cxx_std_17)
 
 install(TARGETS usad_gui DESTINATION lib/${PROJECT_NAME})
 
-add_compile_definitions(FONTS_PREFIX=install/${PROJECT_NAME}/share/${PROJECT_NAME}/fonts)
+add_compile_definitions(RSRC_DIR_PREFIX=install/${PROJECT_NAME}/share/${PROJECT_NAME}/resources)
 
-install(FILES fonts/DSEG14Classic-Italic.ttf DESTINATION share/${PROJECT_NAME}/fonts)
-install(FILES fonts/Roboto-Regular.ttf DESTINATION share/${PROJECT_NAME}/fonts)
+install(FILES resources/DSEG14Classic-Italic.ttf DESTINATION share/${PROJECT_NAME}/resources)
+install(FILES resources/Roboto-Regular.ttf DESTINATION share/${PROJECT_NAME}/resources)
+install(FILES resources/softesm.png DESTINATION share/${PROJECT_NAME}/resources)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
