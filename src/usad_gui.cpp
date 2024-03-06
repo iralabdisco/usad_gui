@@ -332,6 +332,8 @@ class UsadGUI : public rclcpp::Node {
                        2;
             trip_odo += abs(distance / 1000.f);
             speed_kph = distance / (dt_ns / 1000000000.f) * 3.6f;
+            if ((speed_kph > -1.f && speed_kph < 0.f) || isnan(speed_kph))
+                speed_kph = .0f;
             if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
         }
         // if (speed_kph > max_speed_kph) max_speed_kph = speed_kph;
