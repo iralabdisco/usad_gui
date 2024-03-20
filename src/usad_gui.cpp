@@ -355,16 +355,16 @@ class UsadGUI : public rclcpp::Node {
         ImGui::PushFont(font_dseg_big_);
         if (speed_kph < .0f) {
             speed_kph = fabs(speed_kph);
-            if (speed_kph < 10.f) {
-                ImGui::Text("!%1.0f.", speed_kph);
+            if (speed_kph <= 9.9f) {
+                ImGui::Text("!%.1d.", (int)speed_kph);
             } else {
-                ImGui::Text("%2.0f.", speed_kph);
+                ImGui::Text("%.2d.", (int)speed_kph);
             }
         } else {
-            if (speed_kph < 10.f) {
-                ImGui::Text("!%1.0f", speed_kph);
+            if (speed_kph <= 9.9f) {
+                ImGui::Text("!%.1d", (int)speed_kph);
             } else {
-                ImGui::Text("%2.0f", speed_kph);
+                ImGui::Text("%.2d", (int)speed_kph);
             }
         }
         ImGui::PopFont();
