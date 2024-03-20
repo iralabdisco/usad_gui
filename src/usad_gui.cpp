@@ -103,6 +103,8 @@ class UsadGUI : public rclcpp::Node {
     float cmd_vel_x_, cmd_vel_theta_;
     unsigned int cmd_vel_count_;
 
+    bool online_;
+
     void leane_abs_callback(const std_msgs::msg::Int32 msg) {
         static uint offset = 0;
         this->leane_abs_latest_ = msg;
@@ -196,8 +198,10 @@ class UsadGUI : public rclcpp::Node {
                 ImGui::Text("Packet DT: %.3f ms", disp_packet_dt_ms);
                 ImGui::Text("Control Board Status: ");
                 ImGui::SameLine();
+                this->online_ = true;
                 if (last_packet_dt_ms > 100.f) {
                     ImGui::TextColored({1.f, 0.f, 0.f, 1.f}, "OFFLINE");
+                    this->online_ = false;
                 } else if (last_packet_dt_ms > 55.f) {
                     ImGui::TextColored({1.f, 0.55f, 0.f, 1.f}, "ONLINE (HL)");
                 } else {
@@ -396,11 +400,30 @@ class UsadGUI : public rclcpp::Node {
     }
 
     void draw_emerg_stop_window(bool* visible) {
+        static bool pressed = false;
         ImGui::Begin("Emergency Stop", visible,
                      ImGuiWindowFlags_AlwaysAutoResize);
-        if (ImGui::ImageButton((ImTextureID)(intptr_t)softesm_button_,
-                               ImVec2(320, 320))) {
-            ;
+        if (this->online_) {
+            if (pressed) {
+                ImGui::Image((ImTextureID)(intptr_t)softesm_button_,
+                             ImVec2(320, 320));
+                if (ImGui::Button("Reset")) {
+                    system(
+                        "ros2 service call /emergency_restart "
+                        "std_srvs/srv/Trigger");
+                    pressed = false;
+                }
+            } else {
+                if (ImGui::ImageButton((ImTextureID)(intptr_t)softesm_button_,
+                                       ImVec2(320, 320))) {
+                    system(
+                        "ros2 service call /emergency_stop "
+                        "std_srvs/srv/Trigger");
+                    pressed = true;
+                }
+            }
+        } else {
+            ImGui::Text("Control Board Offline.");
         }
         ImGui::End();
     }
@@ -482,7 +505,8 @@ int main(int argc, char** argv) {
             IMG_LoadTexture(usad_renderer_, RSRC_LOC("softesm.png"));
         if (softesm_button_ == NULL) {
             std::stringstream ss;
-            ss << "Unable to create the Emergency Stop Button texture. Reason: "
+            ss << "Unable to create the Emergency Stop Button texture. "
+                  "Reason: "
                << SDL_GetError();
             throw std::runtime_error(ss.str().c_str());
         }
